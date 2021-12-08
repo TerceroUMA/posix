@@ -1,4 +1,4 @@
-//gcc -o main ejercicio4.c -lpthread && ./main && rm ./main
+//gcc -o main ejercicio4Hembrista.c -lpthread && ./main && rm ./main
 
 #include <pthread.h>
 #include <stdio.h>
@@ -15,39 +15,47 @@ pthread_cond_t noPuedePasar;
 
 int chicosDentro = 0;
 int chicasDentro = 0;
+int chicasEsperando = 0;
 
 void entraChica(int id) {
 
-   pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex);
 
-    while(chicosDentro >= 1 || chicasDentro >= 1) {
-      pthread_cond_wait(&noPuedePasar, &mutex);
-    }
-    
-    chicasDentro += 1;
+  chicasEsperando += 1;
+  printf("La hebra %d, que es mujer, se pone en la cola\n", id) ;
 
-    printf("La hebra %d, que es mujer, entra\n", id) ;
-    printf("Hay %d mujeres y %d chicos\n\n", chicasDentro, chicosDentro) ;
+  while(chicosDentro >= 1 || chicasDentro >= 1) {
+    pthread_cond_wait(&noPuedePasar, &mutex);
+  }
+  
+  chicasEsperando -= 1;
+  chicasDentro += 1;
 
-    pthread_cond_broadcast(&noPuedePasar);
-    pthread_mutex_unlock(&mutex);
+  printf("La hebra %d, que es mujer, entra\n", id) ;
+  printf("Hay %d mujeres y %d chicos\n\n", chicasDentro, chicosDentro) ;
+
+  pthread_cond_broadcast(&noPuedePasar);
+  pthread_mutex_unlock(&mutex);
 }
 
 void entraChico(int id) {
 
-   pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex);
 
-    while(chicosDentro >= 5 || chicasDentro >= 1) {
-      pthread_cond_wait(&noPuedePasar, &mutex);
-    }
-    
-    chicosDentro += 1;
+  printf("La hebra %d, que es hombre, se pone en la cola\n", id) ;
 
-    printf("La hebra %d, que es hombre, entra\n", id) ;
-    printf("Hay %d mujeres y %d chicos\n\n", chicasDentro, chicosDentro) ;
+  while(chicosDentro >= 5 || chicasDentro >= 1 || chicasEsperando >= 1) {
+    pthread_cond_wait(&noPuedePasar, &mutex);
+  }
+  
+  
+  chicosDentro += 1;
 
-    pthread_cond_broadcast(&noPuedePasar);
-    pthread_mutex_unlock(&mutex);
+  printf("La hebra %d, que es hombre, entra\n", id) ;
+  printf("Hay %d mujeres y %d chicos\n\n", chicasDentro, chicosDentro) ;
+
+  pthread_cond_broadcast(&noPuedePasar);
+  pthread_mutex_unlock(&mutex);
 }
 
 /**
@@ -105,7 +113,6 @@ void *hombre(void* idParam) {
   return NULL;
 }
 
-
 int main(int argc, char *argv) {
 
   pthread_t threads[NUM_THREADS];
@@ -144,43 +151,3 @@ int main(int argc, char *argv) {
 
   printf("\n\nCon las regiones críticas junto con condiciones de espera no tenemos pérdidas en el número de incrementaciones.\n\n");
 }
-
-/* 
-  void *hombre(void* idParam) {
-
-  int id = *(int*) idParam;
-
-  for (int i = 0; i < 10; i++) {
-
-    pthread_mutex_lock(&mutex);
-
-    while(chicosDentro >= 5 || chicasDentro >= 1) {
-      pthread_cond_wait(&noPuedePasar, &mutex);
-    }
-    
-    chicosDentro += 1;
-
-    printf("La hebra %d, que es hombre, entra:\n", id) ;
-    printf("Hay %d mujeres y %d chicos:\n\n", chicasDentro, chicosDentro) ;
-
-    pthread_cond_broadcast(&noPuedePasar);
-    pthread_mutex_unlock(&mutex);
-
-    sleep(2);
-    
-    pthread_mutex_lock(&mutex);
-
-    chicosDentro -= 1;
-
-    printf("La hebra %d, que es hombre, sale:\n", id) ;
-    printf("Hay %d mujeres y %d chicos:\n\n", chicasDentro, chicosDentro) ;
-
-    // La hebrá tendrá que dormir y luego salir del baño. ¿como?
-
-    pthread_cond_broadcast(&noPuedePasar);
-    pthread_mutex_unlock(&mutex);
-  }
-
-  return NULL;
-}
- */

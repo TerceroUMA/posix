@@ -7,14 +7,11 @@
   - [Memoria virtual](#memoria-virtual)
   - [Señales de tiempo real](#señales-de-tiempo-real)
     - [Ejemplo](#ejemplo)
+  - [Tareas periódicas](#tareas-periódicas)
+    - [Relojes](#relojes)
+      - [Retardos](#retardos)
+    - [Temporizadores](#temporizadores)
 
-::: warning
-*here be dragons*
-:::
-
-:bowtie:
-`:bowtie:`
-$\alef$
 
 # Posix
 ## Mutex 
@@ -461,5 +458,197 @@ void *Thread(void *arg) {
 
       MostraDatosSig(&info);
     }
+}
+```
+
+## Tareas periódicas
+
+Hay momentos en los que querremos que una tarea se repita de forma periódica.
+
+```c
+
+while(1) {
+  tarea();
+  sleep(1);
+}
+```
+
+El código de arrriba estaría mal, por siempre habría un retraso por culpa del tiempo que tarda en ejecutarse la tarea. Este error se irá acumulando.
+
+Para solucionar este error vamos a ver relojes y temporizadores.
+
+### Relojes
+
+Distintos relojes:
+* **CLOCK_REALTIME:** Da valor del tiempo en hora miutos y segundo
+* **CLOCK_MONOTONIC:** Da un tiempo más exacto. En la **asignatura usaremos este**.
+
+```c
+struct timespec {
+  time_t tv_sec; /* segundos */
+  long tv_nsec; /* nanosegundos */
+}
+typedef .. clockid_t
+```
+`clockid_t` sirve para identificar distintos relojes. `CLOCK_REALTIME` y `CLOCK_MONOTONIC` son constantes de este tipo.
+
+¿Como usarlo?
+```c
+#include <time.h>
+
+//¿?
+int clock_getres(clockid_t clk_id, struct timespec *res);
+
+// Devuelve el tiempo actual
+int clock_gettime(clockid_t clk_id, struct timespec *tp);
+
+// Impone un tiempo. No se puede usar con CLOCK_MONOTONIC. Como usaremos ese modo, esta función no servirá.
+int clock_settime(clockid_t clk_id, const struct timespec *tp);
+```
+
+#### Retardos
+`unsigned sleep(unsigned seconds)` Retardo asociado a una hebra especificado en segundos.
+
+```c
+int clock_nanosleep (
+  clockid_t clock_id,int flags,
+  const struct timespec *rtpq,
+  struct timespec *rmpt
+);
+```
+
+Ejemplo. Importante para examen
+
+```c
+void periodic () {
+  struct timespec next, period;
+
+  // Instante temporal donde se tiene que activar la tarea
+  if (clock_gettime (CLOCK_MONOTONIC, &next) != 0) error();
+  period.tv_sec = 0;
+  period.tv_nsec = 10.0E6; /* 10 ms */
+
+  while (1) {
+    if (clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME,
+    &next, 0) != 0) error();
+
+    accion_periodica();
+
+    /* Marcaos el tiempo en el que queremos que se ejecute la
+    siguiente acción, el clock ya se encargará de gestionar
+    los retrasos. */
+    next.tv_sec = next.tv_sec + period.tv_sec;
+    next.tv_nsec = next.tv_nsec + period.tv_nsec;
+
+    /* Hacemos esto para que no haya desborde por el valor de la 
+    variables. Si supera un segundo, los nano segundos se resetean
+    y a los segundos se le suma 1. */
+    next.tv_sec += next.tv_nsec / 1000000000;
+    next.tv_nsec = next.tv_nsec % 1000000000;
+  }
+}
+```
+
+### Temporizadores
+
+Hay que importar -lrt al compilar.
+
+Quiero que una tarea se haga cada segundo, entonces cada segundo se lanzará una señal, el manejador de la señal realizará la tarea periódica que queremos usar.
+
+```c
+ /* Crea un temporizador. primer parámetro el tipo de reloj a tratar,
+ el segundo una estructura que dice que cuando el temporizador
+ llegue a cero vas a enviar X señales y el tercero el identificador del temporizador. */
+ // Se devuelve 0 en caso de éxito y -1 en caso de error.
+ int timer_create (
+  clockid_t clock_id, 
+  struct sigevent *evp,
+  timer_t *timerid)
+
+struct sigevent {
+  int sigev_notify /* notification type */
+  int sigev_signo; /* signal number, identificador de la señal */
+  union sigval sigev_value; /* signal value, un valor como un parámetro ¿que podemos poner el que queramos para cambiar el comportamiento en el manejador? */
+};
+/*
+sigev_notify: 
+- SIGEV_SIGNAL : se asocia una señal
+- SIGEV_NONE: no se notifica nada. En verdad se envía 
+              la señal ¿SIG_ALARM?
+*/
+
+/* Falta decir cada cuanto es el temporizador y desde
+ que instante hay q empezar el contador. */
+
+struct timespec {
+  time_t tv_sec; /* seconds */
+  long tv_nsec; /* and nanoseconds */
+};
+
+
+struct itimerspec {
+  struct timespec it_interval; /* periodo */
+  struct timespec it_value; /* valor inicial*/ // Si está a cero se desactiva el temporizado
+};
+
+// Como lo ponemos a funcionar? Mirar abajo
+
+int timer_settime (
+  timer_t timerid,
+  int flags,
+  const struct itimerspec *value,
+  struct itimerspec *ovalue
+);
+
+/*
+  Flag: a temporización puede ser relativa o absoluta, según el valor de flags.
+  - TIMER_RELTIME: temporizador relativo a la llamada a la función -> valor 0
+  - TIMER_ABSTIME: temporizador absoluto (Época UNIX)
+
+  El funcionamiento se repite periódicamente si value.it_period > 0
+  En *ovalue se devuelve el valor que quedaba de la temporización anterior. Lo pondremos a NULL porque el profesor no sabe como funciona.
+*/
+```
+
+Ejemplo
+```c
+int main() {
+  
+  sysset_t set;
+  sysemptyset(&set); // Conjunto vacío
+  sysaddset(&set, SIGRTMIN); // El temporizador enviará SIGRTMIN, por eso la bloqueamos
+
+  pthread_sigmask(SIG_BLOCK, &set, NULL); // Bloqueamos las señales del conjunto
+
+  pthread_create(&threadid, NULL, periodic);
+  
+}
+
+void periodic (void *arg) {
+  int signum; /* señal recibida */
+  sigset_t set; /* señales a las que se espera */
+  struct sigevent sig; /* información de señal */
+  timer_t timer;
+  struct itimerspec required, old;
+  struct timespec period;
+
+  sig.sigev_notify = SIGEV_SIGNAL;
+  sig.sigev_signo = SIGRTMIN;
+
+  if (clock_gettime (CLOCK_MONOTONIC, &required.it_value) != 0) error();
+  period.tv_sec = 0;
+  period.tv_nsec = 10.0E6; /* 10 ms */
+  required.it_interval = period;
+
+  if (timer_create(CLOCK_MONOTONIC,&sig,&timer) != 0) error();
+  if (sigemptyset(&set) != 0) error ();
+  if (sigaddset(&set, SIGRTMIN) != 0) error();
+  if (timer_settime(timer,0, &required, &old) != 0) error ();
+
+  while (1) {
+    // Esperea a la señal
+    if (sigwait(&set, &signum) != 0) error();
+    // Comportamiento de la tarea
+  }   
 }
 ```

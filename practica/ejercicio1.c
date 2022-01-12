@@ -24,10 +24,7 @@ void espera_activa ( time_t seg ) {
 
 }
 
-
 struct argumentosStruct {
-  pthread_attr_t attr;
-  struct sched_param *param;
   pthread_mutex_t mutex;
 };
 
@@ -100,26 +97,28 @@ int main(int argc, char *argv) {
   paramA.sched_priority = 26;
   paramB.sched_priority = 24;
 
-  pthread_attr_init(&argumentos.attr);
-  pthread_attr_setinheritsched(&argumentos.attr, PTHREAD_EXPLICIT_SCHED); // El segundo parámetro dice que le vamos escribir la prioridad de forma explicita  
+  // Creo los atributos
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED); // El segundo parámetro dice que le vamos escribir la prioridad de forma explicita  
 
   pthread_t threads[NUM_THREADS];
 
-  pthread_attr_setschedpolicy(&argumentos.attr, SCHED_FIFO);
-  pthread_attr_setschedparam(&argumentos.attr, &paramA);
+  pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+  pthread_attr_setschedparam(&attr, &paramA);
 
   //printf("Se crea la hebra %d\n", 1);
-  int rc = pthread_create(&threads[0], &argumentos.attr, tareaA, &argumentos);
+  int rc = pthread_create(&threads[0], &attr, tareaA, &argumentos);
   if (rc) {
     printf("ERROR; return code from pthread_create() is %d\n", rc);
     exit(-1);
   }
 
-  pthread_attr_setschedpolicy(&argumentos.attr, SCHED_FIFO);
-  pthread_attr_setschedparam(&argumentos.attr, &paramB);
+  pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+  pthread_attr_setschedparam(&attr, &paramB);
 
   //printf("Se crea la hebra %d\n", 2);
-  rc = pthread_create(&threads[1], &argumentos.attr, tareaB, &argumentos);
+  rc = pthread_create(&threads[1], &attr, tareaB, &argumentos);
   if (rc) {
     printf("ERROR; return code from pthread_create() is %d\n", rc);
     exit(-1);
@@ -132,5 +131,5 @@ int main(int argc, char *argv) {
 
   printf("\n\nFin del programa.\n\n"); fflush(stdout);
 
-  pthread_attr_destroy(&argumentos.attr);
+  pthread_attr_destroy(&attr);
 }

@@ -17,30 +17,13 @@ int variableCompartida = 0;
  * @param segundosDeseadoInt 
  * @param nanoSegundosDeseado No puede ser >= 1E9.
  */
-void espera_activa(int segundosDeseadoInt, long nanoSegundosDeseado) {
+void espera_activa ( time_t seg ) {
 
-  time_t segundosDeseado = segundosDeseadoInt;
-  clockid_t clock;
-  struct timespec tiempos;
+  volatile time_t t = time (0) + seg ;
+  while ( time (0) < t);
 
-  clock_gettime(clock, &tiempos);
-
-  printf("Antes de la suma: segundos: %ld, nano: %ld\n", tiempos.tv_sec, tiempos.tv_nsec);
-
-  printf("Mis datos: s: %ld ns: %ld\n", segundosDeseado, nanoSegundosDeseado);
-
-  nanoSegundosDeseado = (tiempos.tv_nsec + nanoSegundosDeseado) % 1000000000;
-  segundosDeseado = (segundosDeseado + tiempos.tv_sec); //+ (nanoSegundosDeseado / 1000000000);
-
-  printf("Después de la suma: segundos: %ld, nano: %ld\n", segundosDeseado, nanoSegundosDeseado);
-
-  int cumplido = 0;
-  while (cumplido == 0) {
-    clock_gettime(clock, &tiempos);
-    if (tiempos.tv_sec >= segundosDeseado 
-      && tiempos.tv_nsec >= nanoSegundosDeseado) cumplido = 1;
-  }
 }
+
 
 struct argumentosStruct {
   pthread_attr_t attr;
@@ -57,11 +40,11 @@ void *tareaA(void* arg) {
     pthread_mutex_lock(&argumentos.mutex);
 
     variableCompartida += 100;
-    //printf("La hebra %d aumenta el valor de la variable a: %d\n", 1, variableCompartida);
+    printf("La hebra %d aumenta el valor de la variable a: %d\n", 1, variableCompartida); fflush(stdout);
 
     pthread_mutex_unlock(&argumentos.mutex);
 
-    espera_activa(0, 1E8);
+    espera_activa(1);
   }
 
   return NULL;
@@ -69,7 +52,7 @@ void *tareaA(void* arg) {
 
 void *tareaB(void* arg) {
 
-  /* struct argumentosStruct argumentos = *(struct argumentosStruct*) arg;
+  struct argumentosStruct argumentos = *(struct argumentosStruct*) arg;
 
   for(int i = 0; i < NUM_ITER; i++) {
 
@@ -80,16 +63,14 @@ void *tareaB(void* arg) {
 
     pthread_mutex_unlock(&argumentos.mutex);
 
-    //sleep(1);
-
-    espera_activa(1, 0);
+    espera_activa(1);
 
     int i = 0;
 
     while (i < 100000000) i++;
 
   }
-*/
+
   return NULL; 
 }
 
@@ -149,7 +130,7 @@ int main(int argc, char *argv) {
     pthread_join(threads[i], NULL);
   }
 
-  printf("\n\nFin del programa.\n\n");
+  printf("\n\nFin del programa.\n\n"); fflush(stdout);
 
   pthread_attr_destroy(&argumentos.attr);
 }
